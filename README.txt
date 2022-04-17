@@ -1,0 +1,1 @@
+Read the instructions in the game.
