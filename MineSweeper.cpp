@@ -1,470 +1,297 @@
-#include<bits/stdc++.h>
-#include<stdlib.h>
-#include<time.h>
-#include<conio.h>
-#define isValid(i,j) (i>=0 && i<ROW &&j>=0 && j<COL)
-
+#include<iostream>
+#include<cstdlib>
+#include<vector>
+#include<ctime>
+#include<string>
+#include<set>
+#include<queue>
+#include<utility>
 
 using namespace std;
 
-int ROW;
-int COL;
-int FLOWERCOUNT;
-int COVERCOUNT = ROW*COL;
-bool GAMEOVER = false;
-bool WIN = false;
-
-
-bool isNotInSquare(int x, int y, int i, int j)
-{
-    bool isNot = true;
-    int p,q;
-    for(p=i-1;p-i+1<3;p++)
-    {
-        for(q=j-1;q-j+1<3;q++)
-        {
-            if(isValid(p,q))
-            {
-                if(p==x && q==y)
-                {
-                    isNot = false;
-                }
-            }
-        }
-    }
-    return isNot;
-}
-//Structure for FLOWER
-struct FLOWER
-{
-    int x;
-    int y;
-};
-
-//Game goes here
-class GameBoard
-{
-    vector< vector<int> > mines;//Matrix to store EPMTY SPACE = 0, FLOWER = -1, and NUMBERS>0 = no. of FLOWERS around it
-    vector< vector<int> > isCovered;//Matrix to store 0 = NOR COVERED, 1 = COVERED
-    vector<FLOWER> FLOWERVector; //Stores exact location of FLOWERs in an array of FLOWER.
-    void setUpBoards();//resize and fill in the initial values of mines[] and isCovered
-    void placeFLOWERs(int a, int b);//place FLOWERs randomly on mines[] board, except in the 9x9 square centred at the point of first click (a,b)
-    void placeNumbers();//place numbers to show where the FLOWERs are, on mines[].
-    void unCover(int i, int j);//Uncovers tiles when clicked by user; for the first click, call placeFLOWERs and placeNumbers
+class MineSweeper {
+    vector<vector<int>> mines;
+    set<pair<int, int>> bombs;
+    static vector<string> numList;
+    static vector<pair<int, int>> dirs;
 public:
-    GameBoard();
-    void printBoard();
-    void askUser();
+    MineSweeper(int, int);
+    int print(); //To Print mines board and return number of unrevealed
+    bool check(int, int, bool); //To detonate bomb for once
+    bool isValid(int, int); //To check valid row,col
+    void bfs(int, int); //To traverse
+    void startGame(); //MineSweeper game start
+    void gameOver(bool); //Win or lose Screen
 };
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void GameBoard::setUpBoards()
-{
-    int i,j;
-    mines.resize(ROW);
-    isCovered.resize(ROW);
-    //Initializee mines[]
-    for(i=0;i<ROW;i++)
-    {
-        mines[i].resize(COL);
-        for(j=0;j<COL;j++)
-        {
-            mines[i][j] = 0;
-        }
-    }
-    //Initialize isVisited[]
-    for(i=0;i<ROW;i++)
-    {
-        isCovered[i].resize(COL);
-        for(j=0;j<COL;j++)
-        {
-            isCovered[i][j] = 1;
-        }
-    }
-}
-//Place FLOWERs randomly on board
-void GameBoard::placeFLOWERs(int a,int b)
-{
-    srand(time(NULL));
-    FLOWERVector.resize(FLOWERCOUNT);
-    set< pair<int,int> > FLOWERSet;
-    int i,p,q;
-    for(i=0;i<FLOWERCOUNT;i++)
-    {
-        do
-        {
-            p = rand()%ROW;
-            q = rand()%COL;
-        }while(!isNotInSquare(p,q,a,b) || !(FLOWERSet.find( pair<int,int> (p,q))==FLOWERSet.end()));
+vector<string> MineSweeper::numList = {"01", "02", "03", "04", "05", "06", "07", "08", "09",
+      "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "21", "22", 
+      "23", "24", "25", "26", "27", "28", "29", "30"
+};
 
-        FLOWERVector[i].x = p;
-        FLOWERVector[i].y = q;
-        FLOWERSet.insert( pair<int,int> (p,q));
-    }
+vector<pair<int, int>> MineSweeper::dirs = {
+    {0, -1}, {-1, 0}, {1, 0}, {0, 1}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}
+};
 
-    for(i=0;i<FLOWERCOUNT;i++)
-    {
-        mines[FLOWERVector[i].x][FLOWERVector[i].y] = -1; //Place -1 in board where FLOWER lies.
+MineSweeper::MineSweeper(int row, int col) {
+    mines.resize(row);
+    for(int i = 0; i < row; ++i) {
+        mines[i].resize(col, -1);
     }
+    int limit;
+    switch(row) {
+        case 9: limit = 10; break;
+        case 16: limit = 40; break;
+        case 30: limit = 99; break; 
+    }
+    vector<int> r,c;
+    srand(1);
+    for(int i = 0; i < limit; ++i) {
+        int l = rand()%row;
+        r.push_back(l);
+    }
+    srand(2);
+    for(int i = 0; i < limit; ++i) {
+        int l = rand()%col;
+        c.push_back(l);
+    }
+    for(int i = 0; i < limit; ++i) {
+        bombs.insert({r[i], c[i]});
+    }
+    print();
 }
 
-void GameBoard::placeNumbers()
-{
-    int i,j,p,q,cnt;
-    for(i=0;i<ROW;i++)
-    {
-        for(j=0;j<COL;j++)
-        {
-            if(mines[i][j]!=-1)
-            {
-                cnt=0;
-                for(p=i-1;p-i+1<3;++p)
-                {
-                    for(q=j-1;q-j+1<3;++q)
-                    {
-                        if(isValid(p,q))
-                        {
-                            if(mines[p][q] == -1) cnt++;
-                        }
-                    }
+bool MineSweeper::check(int r, int c, bool del = false) {
+    if(bombs.find(make_pair(r,c)) != bombs.end()) {
+        if(del)
+            bombs.erase({r,c});
+        return true;
+    }
+    return false;
+}
+
+bool MineSweeper::isValid(int r, int c) {
+    if(r < 0 || r >= mines.size() || c >= mines[0].size() || c < 0)
+        return false;
+    return true;
+}
+
+int MineSweeper::print() {
+    bool first_row = true;
+    int col = 0;
+    int unrevealed = 0;
+    cout<<"   ";
+    for(vector<int> row: mines) {
+        if(first_row) {
+            for(int i = 0; i < mines[0].size(); ++i) {
+                cout<<numList[i]<<" ";
+            }
+            cout<<"\n";
+            first_row = false;
+        }
+        cout<<numList[col++]<<" ";
+        for(int val: row) {
+            //Uncovered
+            if(val == -1) {
+                unrevealed++;
+                cout<<"??";
+            } else if(val == 0) {
+                cout<<"  ";
+            } else {
+                cout<<numList[val-1];
+            }
+            cout<<" ";
+        }
+        cout<<"\n";
+    }
+    cout<<"Press Enter to continue ... \n";
+    char m = cin.get();
+    // m = cin.get();
+    return unrevealed;
+}
+
+void MineSweeper::bfs(int r, int c) {
+    queue<pair<int, int>> q;
+    q.push({r, c});
+    while(!q.empty()) {
+        int i = q.front().first;
+        int j = q.front().second;
+        q.pop();
+        if(mines[i][j] != -1) {
+            continue;
+        }
+        mines[i][j] = 0;
+        int cnt = 0;
+        for(int k = 0; k < dirs.size(); ++k) {
+            int x = i + dirs[k].first;
+            int y = j + dirs[k].second;
+            if(isValid(x, y) && check(x, y)) {
+                cnt++;
+            }
+        }
+        if(cnt > 0) {
+            mines[i][j] = cnt;
+        } else {
+            for(int k = 0; k < dirs.size(); ++k) {
+                int x = i + dirs[k].first;
+                int y = j + dirs[k].second;
+                if(isValid(x, y)) {
+                    q.push({x,y});
                 }
-                mines[i][j] = cnt;
-            }
+            }        
         }
     }
 }
 
-void GameBoard::unCover(int i, int j)
-{
-    if(COVERCOUNT == ROW*COL) //WHEN BOARD CLICKED FOR THE FIRST TIME
-    {
-        placeFLOWERs(i,j);
-        placeNumbers();
-    }
-
-    if(mines[i][j]>0)
-    {
-        isCovered[i][j] = 0;
-        COVERCOUNT--;
-    }
-    else if(mines[i][j] == -1)
-    {
-        int p;
-        /*for(p=0;p<FLOWERCOUNT;p++)
-        {
-            isCovered[FLOWERVector[p].x][FLOWERVector[p].y] = 0;
-            COVERCOUNT--;
-        }*/
-        int e,f;
-        for(e=0;e<ROW;e++)
-        {
-            for(f=0;f<COL;f++)
-            {
-                isCovered[e][f] = 0;
+void MineSweeper::startGame() {
+    int r, c;
+    bool wins = false, lost = false;
+    do {
+        system("clear");    
+        int unrevealed = print();
+        cout<<"Enter row col to unreveal that position: \n";
+        do {
+            cin>>r>>c;
+            if(!isValid(r-1, c-1)) {
+                cout<<"Invalid position, Re-Enter Valid One: \n";
             }
+        } while(!isValid(r-1, c-1) && mines[r-1][c-1] != -1);
+        if(check(r-1, c-1)) {
+            lost = true;
+        } else if(unrevealed == bombs.size()) {
+            wins = true;
+        } else {
+            bfs(r-1, c-1);
         }
-        COVERCOUNT = 0;
-        GAMEOVER = true;
-    }
+    } while (!wins && !lost);
+    if(wins)
+        gameOver(true);
     else
-    {
-        queue< pair<int,int> > que;
-        int p,q;
-        que.push(pair<int,int> (i,j));
-        isCovered[i][j] = 0;
-        COVERCOUNT--;
-        while(que.size())
-        {
-            p=que.front().first-1;
-            q=que.front().second;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
+        gameOver(false);
+}
+
+void MineSweeper::gameOver(bool wins) {
+    system("clear");
+    if(wins) {
+        cout<<"Congratulations, you won this game... \n";
+    } else {
+        cout<<"You lost, better luck next time... \n";
+    }
+    cout<<"\n ** means presense of bomb at that point. \n\n";
+    bool first_row = true;
+    int col = 0;
+    cout<<"   ";
+    for(int i = 0; i < mines.size(); ++i) {
+        if(first_row) {
+            for(int i = 0; i < mines[0].size(); ++i) {
+                cout<<numList[i]<<" ";
             }
-            p=que.front().first+1;
-            q=que.front().second;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first;
-            q=que.front().second-1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first;
-            q=que.front().second+1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first-1;
-            q=que.front().second-1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first-1;
-            q=que.front().second+1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first+1;
-            q=que.front().second-1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            p=que.front().first+1;
-            q=que.front().second+1;
-            if(isValid(p,q))
-            {
-                if(mines[p][q]!=-1 && isCovered[p][q])
-                {
-                    isCovered[p][q] = 0;
-                    COVERCOUNT--;
-                    if(mines[p][q] == 0)
-                        que.push(pair<int,int> (p,q));
-                }
-            }
-            que.pop();
+            cout<<"\n";
+            first_row = false;
         }
-    }
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void GameBoard::printBoard()
-{
-    int i,j;
-    cout<<'\t';
-    for(i=0;i<COL;i++)
-    {
-        cout<<(i+1)/10<<' ';
-    }
-    cout<<"\n\t";
-    for(i=0;i<COL;i++)
-    {
-        cout<<(i+1)%10<<' ';
-    }
-    cout<<"\n\n";
-    for(i=0;i<ROW;i++)
-    {
-        cout<<(i+1)<<'\t';
-        for(j=0;j<COL;j++)
-        {
-            if(isCovered[i][j])
-            {
-                cout<<char(127)<<' ';
+        cout<<numList[col++]<<" ";
+        for(int j = 0; j < mines[i].size(); ++j) {
+            int val = mines[i][j];
+            if(check(i,j)) {
+                cout<<"**";
             }
-            else if(mines[i][j] == 0)
-            {
-                cout<<char(176)<<' ';
+            else if(val == -1) {
+                cout<<"??";
+            } else if(val == 0) {
+                cout<<"  ";
+            } else {
+                cout<<numList[val-1];
             }
-            else if(mines[i][j] == -1)
-            {
-                cout<<char(219)<<' ';
-            }
-            else cout<<mines[i][j]<<' ';
+            cout<<" ";
         }
-        cout<<'\n';
+        cout<<"\n";
     }
+    cout<<"Press Enter to continue ... \n";
+    char m = cin.get();
+    // m = cin.get();
 }
 
-void GameBoard::askUser()
-{
-    int i,j;
-    cout<<"\nENTER ROW: ";
-    do
-    {
-        cin>>i;
-        if(i<=0 || i>ROW) cout<<"INVALID. RE-ENTER: ";
-    }while(i<=0 || i>ROW);
-    cout<<"ENTER COL: ";
-    do
-    {
-        cin>>j;
-        if(j<=0 || j>COL) cout<<"INVALID. RE-ENTER: ";
-    }while(j<=0 || j>COL);
-    unCover(i-1,j-1);
+void newGame() {
+    int diff;
+    cout<<"Select Difficulty Level: \n";
+    cout<<"\t 1. Easy (9 * 9) \n";
+    cout<<"\t 2. Medium (16 * 16) \n";
+    cout<<"\t 3. Hard (30 * 16) \n";
+    do {
+        cin>>diff;
+        if(diff < 1 || diff > 3)
+            cout<<"Invalid Difficulty Level, Re-Enter Valid One: \n";
+    } while(diff < 1 || diff > 3);
+    int row,col;
+    switch(diff) {
+        case 1: row = 9; col = 9; break;
+        case 2: row = 16; col = 16; break;
+        case 3: row = 30; col = 16; break; 
+    }    
+    MineSweeper M(row, col);
+    system("clear");
+    int ch, r, c;
+    cout<<"Select Game Type: \n";
+    cout<<"\t 1. Default (Random) \n";
+    cout<<"\t 2. Custom \n";
+    cout<<"\t ENTER CHOICE: \n";
+    cin>>ch;
+    if(ch == 2) {
+        system("clear");
+        cout<<"Enter row col to unreveal that position: \n";
+        do {
+            cin>>r>>c;
+            if(!M.isValid(r-1, c-1)) {
+                cout<<"Invalid position, Re-Enter Valid One: \n";
+            }
+        } while(!M.isValid(r-1, c-1));
+    } else {
+        srand(time(0));
+        r = rand()%row + 1;
+        c = rand()%col + 1;
+    }
+    M.check(r-1, c-1, true);
+    M.bfs(r-1, c-1);
+    M.print();
+    M.startGame();
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-GameBoard::GameBoard()
-{
-    //Initialize the board with rows and columns. Initialize mines[][]
-    setUpBoards();
-}
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void newGame(int row=10, int col=10, int dif=1)
-{
-    ROW = row;
-    COL = col;
-    int p;
-    switch(dif)
-    {
-    case 1:
-        p = 8;
-        break;
-    case 2:
-        p = 6;
-        break;
-    default:
-        p=4;
-    }
-    FLOWERCOUNT = ROW*COL/p;
-    COVERCOUNT = ROW*COL;
-    GAMEOVER = false;
-    WIN = false;
-    GameBoard g;
-    g.printBoard();
-    cout<<"\nCOVERED AREA: "<<COVERCOUNT<<"\n\n";
-    while(!GAMEOVER && !WIN)
-    {
-        g.askUser();
-        system("CLS");
-        g.printBoard();
-        cout<<"\nCOVERED AREA: "<<COVERCOUNT<<"\n\n";
-        if(COVERCOUNT <= FLOWERCOUNT)
-        {
-            WIN = true;
-        }
-    }
-    if(GAMEOVER)
-    {
-        cout<<"GAME OVER\n";
-    }
-    else if (WIN)
-    {
-        cout<<"YOU WON\n";
-    }
+void printInstructions() {
+   cout<<"There are two types of Tiles: \n";
+   cout<<"\t 1. Covered:   \n";
+   cout<<"\t 2. Uncovered \n";
+   cout<<"\t Furthur uncovered tiles can be of three types: \n";
+   cout<<"\t\t a. Numbered: (1,2,3,4,5,6,7,8) that denotes number of bombs in neighbours. \n";
+   cout<<"\t\t b. Empty: . that denotes there is no bombs in neighbours \n";
+   cout<<"\t\t c. Bombs: * that denotes detonated bombs in neighbours \n";
+   cout<<"Task is to uncover the covered tiles with the help of hints: \n";
 }
 
-void createMenu()
-{
-    cout<<"1)NEW GAME\n";
-    cout<<"2)INSTRUCTIONS\n";
-    cout<<"3)EXIT\n\nENTER CHOICE:";
-}
-
-void printInstructions()
-{
-    cout<<"THERE ARE 2 TYPES OF TILES:\n\na)COVERED\nb)UNCOVERED\n\n";
-    cout<<"COVERED:\t\t\t"<<char(127)<<"\n-------\n";
-    cout<<"UNCOVERED: \n---------\n\ti)EMPTY:\t\t"<<char(176)<<"\n\tii)NUMBERED:\t\t1,2,3,4,5,6,7,8\n\tiii)FLOWER:\t\t"<<char(219)<<"\n\n";
-    cout<<"A ROWxCOL BOARD WILL BE PRESENTED, WHICH, INITIALLY HAS ALL TILES COVERED. YOUR TASK IS TO UNCOVER ALL TILES THAT ARE NOT HAVING FLOWERS.\n";
-    cout<<"IF YOU SUCCEED TO DO SO, YOU WIN. IF YOU STEP ON A BOMB, YOU LOSE.\n\n";
-    cout<<"YOU HAVE TO ENTER ROW AND COL OF A PARTICULAR TILE TO UNCOVER THAT TILE.\n";
-    cout<<"EACH NUMBERED TILE REPRESENTS THE NUMBER OF FLOWERS ADJACENT TO THAT NUMBERED TILE.\n";
-}
-int main()
-{
+void createMENU() {
     int ch;
-    do
-    {
-        system("CLS");
-        createMenu();
+    do {
+        /*********************START MENU**********************/
+        system("clear");
+        cout<<"1)NEW GAME\n";
+        cout<<"2)INSTRUCTIONS\n";
+        cout<<"3)EXIT\n\nENTER CHOICE:";
         cin>>ch;
-        system("CLS");
-        switch(ch)
-        {
-            case 1:
-                int dif;
-                cout<<"SELECT DIFFICULTY:\n1)EASY\n2)MED\n3)HARD\n\nENTER CHOICE: ";
-                do
-                {
-                    cin>>dif;
-                    if(dif<1 || dif>3) cout<<"INVALID. RE-ENTER: ";
-                }while(dif<1 || dif>3);
-                system("CLS");
-                int op;
-                cout<<"SELECT GAME TYPE:\n1)DEFAULT\n2)CUSTOM\n\nENTER CHOICE: ";
-                cin>>op;
-                system("CLS");
-                switch(op)
-                {
-                case 2:
-                    int row,col;
-                    cout<<"ENTER #ROWS(>0): ";
-                    do
-                    {
-                        cin>>row;
-                        if(row<=0) cout<<"INVALID. RE-ENTER #ROWS: ";
-                    }while(row<=0);
-                    cout<<"ENTER #COLUMNS(>0): ";
-                    do
-                    {
-                        cin>>col;
-                        if(col<=0) cout<<"INVALID. RE-ENTER #COLUMNS: ";
-                    }while(col<=0);
-                    //FLOWERcount = row*col/8;
-                    //cout<<"#FLOWERS 12.5%ROW*COL= "<<FLOWERcount;
-                    //getch();
-                    system("CLS");
-                    newGame(row,col,dif);
-                    cout<<"\nPress ENTER to continue";
-                    break;
-                default:
-                    newGame(10,10,dif);
-                    cout<<"\nPress ENTER to continue";
-                    break;
-                }
-                break;
-            case 2:
-                printInstructions();
-                cout<<"\nPress ENTER to continue";
-                break;
-            default:
-                cout<<"Press ENTER to continue";
+
+        /*********************DIFFICULTY MENU**********************/
+        system("clear");
+        switch(ch) {
+            case 1: newGame(); break;
+            case 2: printInstructions(); break;
         }
-        getch();
-    }while(ch!=3);
+
+        //For waiting until Enter is clicked
+        int c = cin.get();
+        c = cin.get();
+
+    } while(ch != 3);
+}
+
+int main() {
+    createMENU();
     return 0;
 }
